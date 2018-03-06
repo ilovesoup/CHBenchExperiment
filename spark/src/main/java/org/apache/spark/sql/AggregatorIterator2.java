@@ -1,4 +1,7 @@
-package com.pingcap.benchmark.aggregation
+package org.apache.spark.sql;
+
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 
 public class AggregatorIterator2 extends org.apache.spark.sql.execution.BufferedRowIterator {
   private Object[] references;
@@ -22,10 +25,6 @@ public class AggregatorIterator2 extends org.apache.spark.sql.execution.Buffered
   private org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter agg_rowWriter1;
   private org.apache.spark.sql.execution.metric.SQLMetric wholestagecodegen_numOutputRows;
   private org.apache.spark.sql.execution.metric.SQLMetric wholestagecodegen_aggTime;
-
-  public GeneratedIterator(Object[] references) {
-    this.references = references;
-  }
 
   public void init(int index, scala.collection.Iterator[] inputs) {
     partitionIndex = index;
@@ -52,7 +51,7 @@ public class AggregatorIterator2 extends org.apache.spark.sql.execution.Buffered
   private void agg_doAggregateWithKeys() throws java.io.IOException {
     agg_hashMap = agg_plan.createHashMap();
 
-    while (inputadapter_input.hasNext() && !stopEarly()) {
+    while (inputadapter_input.hasNext()) {
       InternalRow inputadapter_row = (InternalRow) inputadapter_input.next();
       boolean inputadapter_isNull = inputadapter_row.isNullAt(0);
       int inputadapter_value = inputadapter_isNull ? -1 : (inputadapter_row.getInt(0));

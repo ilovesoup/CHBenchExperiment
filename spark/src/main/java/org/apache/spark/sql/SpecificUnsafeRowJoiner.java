@@ -1,4 +1,7 @@
-package com.pingcap.benchmark.aggregation
+package org.apache.spark.sql;
+
+import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
+import org.apache.spark.unsafe.Platform;
 
 public class SpecificUnsafeRowJoiner extends org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowJoiner {
   private byte[] buf = new byte[64];

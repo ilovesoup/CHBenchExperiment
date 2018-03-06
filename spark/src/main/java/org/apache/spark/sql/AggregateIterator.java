@@ -1,4 +1,9 @@
-package com.pingcap.benchmark.aggregation
+package org.apache.spark.sql;
+
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
+import org.apache.spark.unsafe.Platform;
 
 public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRowIterator {
   private Object[] references;
@@ -32,10 +37,6 @@ public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRo
   private org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowJoiner agg_unsafeRowJoiner;
   private org.apache.spark.sql.execution.metric.SQLMetric wholestagecodegen_numOutputRows;
   private org.apache.spark.sql.execution.metric.SQLMetric wholestagecodegen_aggTime;
-
-  public GeneratedIterator(Object[] references) {
-    this.references = references;
-  }
 
   public void init(int index, scala.collection.Iterator[] inputs) {
     partitionIndex = index;

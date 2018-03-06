@@ -1,4 +1,7 @@
-package com.pingcap.benchmark.aggregation
+package org.apache.spark.sql;
+
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 
 public class SpecificUnsafeProjection extends org.apache.spark.sql.catalyst.expressions.UnsafeProjection {
 

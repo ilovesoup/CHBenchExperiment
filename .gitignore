@@ -1,4 +1,6 @@
 ch/obj/*
+.idea
+tispark-sample.iml
 benchmark
 .cproject
 .project
