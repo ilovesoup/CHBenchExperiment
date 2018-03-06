@@ -18,12 +18,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.pingcap.tispark</groupId>
-            <artifactId>tispark</artifactId>
-            <version>${tispark.version}</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-core_${scala.version}</artifactId>
             <version>${spark.version}</version>
