@@ -155,6 +155,6 @@ int main() {
     agg.createAggregateStates(ptr);
     Method m;
     Method::State s;
-    agg.executeImplCase(m, s, 0, ptr);
+    agg.executeImplCase(m, s, 0, NULL, ptr);
     return 0;
 }

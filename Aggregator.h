@@ -75,10 +75,26 @@ struct AggregateFunctionSum {
         this->data(place).add(static_cast<const ColumnVector<T> &>(*columns[0]).getData()[row_num]);
     }
 
+    static void addFree(const AggregateFunctionSum<T> * that, AggregateDataPtr place, const ColumnVector<T> ** columns, size_t row_num, Arena * arena)
+    {
+        static_cast<const AggregateFunctionSum<T> &>(*that).add(place, columns, row_num, arena);
+    }
+
     void create(AggregateDataPtr place) const
 	{
 		new (place) Data;
 	}
+
+    AggregateFunctionSum<T> * that;
+};
+
+template <typename T>
+struct AggregateFunctionInstruction
+{
+	void (* func)(const AggregateFunctionSum<T> * that, AggregateDataPtr place, const ColumnVector<T> ** columns, size_t row_num, Arena * arena);
+    const AggregateFunctionSum<T> * that;
+    size_t state_offset;
+    const ColumnVector<T> ** arguments;
 };
 
 template <typename T>
@@ -100,9 +116,11 @@ struct Aggretator {
 	    Method & method,
 	    typename Method::State & state,
 	    size_t rows,
+		AggregateFunctionInstruction<T> * aggregate_instructions,
 	    AggregateDataPtr overflow_row) const
 	{
-		std::shared_ptr<Arena> aggregates_pool(new Arena());
+		std::shared_ptr<Arena> aggregates_pool_ptr(new Arena());
+		Arena * aggregates_pool = aggregates_pool_ptr.get();
 	    /// NOTE When editing this code, also pay attention to SpecializedAggregator.h.
 
 	    /// For all rows.
@@ -120,7 +138,8 @@ struct Aggretator {
 	        {
 	            /// Add values to the aggregate functions.
 	            AggregateDataPtr value = Method::getAggregateData(it->second);
-	            //(*inst->func)(inst->that, value + inst->state_offset, inst->arguments, i);
+	            for (AggregateFunctionInstruction<T> * inst = aggregate_instructions; inst->that; ++inst)
+	                (*inst->func)(inst->that, value + inst->state_offset, inst->arguments, i, aggregates_pool);
 
 	            continue;
 	        }
@@ -145,7 +164,8 @@ struct Aggretator {
 	        AggregateDataPtr value = (!overflow) ? Method::getAggregateData(it->second) : overflow_row;
 
 	        /// Add values to the aggregate functions.
-	        //(*inst->func)(inst->that, value + inst->state_offset, inst->arguments, i);
+	        for (AggregateFunctionInstruction<T> * inst = aggregate_instructions; inst->that; ++inst)
+	            (*inst->func)(inst->that, value + inst->state_offset, inst->arguments, i, aggregates_pool);
 	    }
 	}
 };
