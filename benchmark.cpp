@@ -19,7 +19,7 @@ using Method = AggregationMethodOneNumber<UInt32, AggregatedDataWithUInt64Key>;
 void testNaiveLocality(UInt32 * pData, size_t len);
 void benchmark();
 void testFilter(shared_ptr<UInt32> pData, size_t len);
-void testAggregates(shared_ptr<UInt32> pData, size_t len);
+void testAggregates(shared_ptr<UInt32> keyPtr, shared_ptr<UInt32> dataPtr, size_t len);
 
 void handler(int sig) {
   void *array[10];
@@ -41,10 +41,13 @@ void benchmark() {
 	constexpr size_t length = bytes_in_gb * num_gb / sizeof(UInt32);
     cout << "Total size " << num_gb << "G" << endl;
     shared_ptr<UInt32> dataPtr = shared_ptr<UInt32>(new UInt32[length], std::default_delete<UInt32[]>());
+    shared_ptr<UInt32> keyPtr = shared_ptr<UInt32>(new UInt32[length], std::default_delete<UInt32[]>());
     UInt32 * pData = dataPtr.get();
+    UInt32 * pKey = keyPtr.get();
     for (size_t i = 0; i < length; i++) {
         //pData[i] = rand() % 1000;
-    		pData[i] = 1;
+    		pKey[i] = i % 50 + 1;
+    		pData[i] = i % 50 + 1;
     }
     /*
     cout << "benchmark started." << endl;
@@ -57,7 +60,31 @@ void benchmark() {
     cout << "Test sorted data" << endl;
     testFilter(dataPtr, length);
 	*/
-    testAggregates(dataPtr, length);
+    cout << "benchmark aggregates started." << endl;
+    testAggregates(keyPtr, dataPtr, length);
+}
+
+void testAggregates(shared_ptr<UInt32> keyPtr, shared_ptr<UInt32> dataPtr, size_t len) {
+	Timer t;
+	UInt32 * pData = dataPtr.get();
+	UInt32 * pKey = keyPtr.get();
+	ColumnVector<UInt32> vData(dataPtr, len);
+	ColumnVector<UInt32> vKey(keyPtr, len);
+
+	Aggretator<UInt32, Method> agg;
+
+	Method m(&vData, &vKey);
+	agg.executeImplCase(m, len, m.inst);
+	PRINT_MIL("Aggregates", t.stop());
+
+	Method::Data & data = m.data;
+    for (auto & cell : data)
+    {
+        UInt32 key = cell.first;
+        UInt32 value = *((UInt32 *)cell.second);
+
+        cout << "key=" << key << "\tvalue=" << value << endl;
+    }
 }
 
 template <typename T>
@@ -100,17 +127,6 @@ void testFilter(shared_ptr<UInt32> dataPtr, size_t len) {
     }
     cout << (sum == 0 ? "Correct" : "Incorrect") << endl;
     delete [] pFilter;
-}
-
-void testAggregates(shared_ptr<UInt32> dataPtr, size_t len) {
-	Timer t;
-	UInt32 * pData = dataPtr.get();
-	ColumnVector<UInt32> v(dataPtr, len);
-
-	Aggretator<UInt32, Method> agg;
-
-	Method m(&v);
-	agg.executeImplCase(m, len, m.inst);
 }
 
 void testNaiveLocality(UInt32 * pData, size_t len) {
@@ -162,7 +178,7 @@ void testNaiveLocality(UInt32 * pData, size_t len) {
 
 int main() {
     int i;
-    cin >> i;
+    //cin >> i;
     signal(SIGSEGV, handler);
     benchmark();
     return 0;

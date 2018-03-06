@@ -31,23 +31,24 @@ struct AggregationMethodOneNumber
 
     Data data;
 
-    AggregationMethodOneNumber(ColumnVector<FieldType> * arguments) {
+    AggregationMethodOneNumber(ColumnVector<FieldType> * arguments, ColumnVector<FieldType> * keys) {
     		inst = new AggregateInstructionType[2];
     		inst->func = AggregateFunctionSum<FieldType>::addFree;
     		inst->state_offset = 0;
+    		inst->that = new AggregateFunctionSum<FieldType>();
     		inst->arguments = arguments;
-    		state.vec = arguments->getData();
+    		state.keyVec = keys->getData();
     }
 
     /// To use one `Method` in different threads, use different `State`.
     struct State
     {
-        FieldType * vec;
+        FieldType * keyVec;
 
         /// Get the key from the key columns for insertion into the hash table.
         Key getKey(size_t i) const
         {
-            return unionCastToUInt64(vec[i]);
+            return unionCastToUInt64(keyVec[i]);
         }
     };
 
@@ -61,7 +62,7 @@ struct AggregationMethodOneNumber
       */
     static const bool no_consecutive_keys_optimization = false;
 
-    AggregateInstructionType * inst = nullptr;
+    AggregateInstructionType * inst;
 };
 
 using AggregatedDataWithUInt64Key = HashMap<UInt64, AggregateDataPtr, HashCRC32<UInt64>, HashTableGrower<>, HashTableAllocator>;
@@ -102,7 +103,7 @@ struct AggregateFunctionSum {
 		new (place) Data;
 	}
 
-    AggregateFunctionSum<T> * that;
+    AggregateFunctionSum<T> * that = nullptr;
 };
 
 // Actual type value binding is not here but for simplicity we put it here
