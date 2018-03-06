@@ -1,8 +1,6 @@
-public java.lang.Object generate(Object[] references) {
-  return new SpecificUnsafeProjection(references);
-}
+package com.pingcap.benchmark.aggregation
 
-class SpecificUnsafeProjection extends org.apache.spark.sql.catalyst.expressions.UnsafeProjection {
+public class SpecificUnsafeProjection extends org.apache.spark.sql.catalyst.expressions.UnsafeProjection {
 
   private Object[] references;
   private int value1;

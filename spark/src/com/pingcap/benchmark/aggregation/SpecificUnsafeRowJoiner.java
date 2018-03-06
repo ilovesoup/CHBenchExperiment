@@ -1,8 +1,6 @@
-public java.lang.Object generate(Object[] references) {
-  return new SpecificUnsafeRowJoiner();
-}
+package com.pingcap.benchmark.aggregation
 
-class SpecificUnsafeRowJoiner extends org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowJoiner {
+public class SpecificUnsafeRowJoiner extends org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowJoiner {
   private byte[] buf = new byte[64];
   private UnsafeRow out = new UnsafeRow(2);
 

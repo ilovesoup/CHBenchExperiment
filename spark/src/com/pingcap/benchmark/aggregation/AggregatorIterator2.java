@@ -1,8 +1,6 @@
-public Object generate(Object[] references) {
-  return new GeneratedIterator(references);
-}
+package com.pingcap.benchmark.aggregation
 
-final class GeneratedIterator extends org.apache.spark.sql.execution.BufferedRowIterator {
+public class AggregatorIterator2 extends org.apache.spark.sql.execution.BufferedRowIterator {
   private Object[] references;
   private scala.collection.Iterator[] inputs;
   private boolean agg_initAgg;
