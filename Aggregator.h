@@ -7,7 +7,17 @@
 #include "Arena.h"
 #include "ColumnVector.h"
 
+template <typename T>
+struct AggregateFunctionInstruction;
+
+template <typename T>
+struct AggregateFunctionSumData;
+
+template <typename T>
+struct AggregateFunctionSum;
+
 /// For the case where there is one numeric key.
+// For simplicity, using same type for both group by and aggregate type
 template <typename FieldType, typename TData>    /// UInt8/16/32/64 for any type with corresponding bit width.
 struct AggregationMethodOneNumber
 {
@@ -16,19 +26,23 @@ struct AggregationMethodOneNumber
     using Mapped = typename Data::mapped_type;
     using iterator = typename Data::iterator;
     using const_iterator = typename Data::const_iterator;
-    using AggType = typename NearestFieldType<FieldType>::Type;
+    using AggType = FieldType;
+    using AggregateInstructionType = AggregateFunctionInstruction<FieldType>;
 
     Data data;
 
-    AggregationMethodOneNumber() {}
-
-    template <typename Other>
-    AggregationMethodOneNumber(const Other & other) : data(other.data) {}
+    AggregationMethodOneNumber(ColumnVector<FieldType> * arguments) {
+    		inst = new AggregateInstructionType[2];
+    		inst->func = AggregateFunctionSum<FieldType>::addFree;
+    		inst->state_offset = 0;
+    		inst->arguments = arguments;
+    		state.vec = arguments->getData();
+    }
 
     /// To use one `Method` in different threads, use different `State`.
     struct State
     {
-        const FieldType * vec;
+        FieldType * vec;
 
         /// Get the key from the key columns for insertion into the hash table.
         Key getKey(size_t i) const
@@ -37,6 +51,8 @@ struct AggregationMethodOneNumber
         }
     };
 
+    State state;
+
     /// From the value in the hash table, get AggregateDataPtr.
     static AggregateDataPtr & getAggregateData(Mapped & value)                { return value; }
     static const AggregateDataPtr & getAggregateData(const Mapped & value)    { return value; }
@@ -44,11 +60,12 @@ struct AggregationMethodOneNumber
     /** Do not use optimization for consecutive keys.
       */
     static const bool no_consecutive_keys_optimization = false;
+
+    AggregateInstructionType * inst = nullptr;
 };
 
-using AggregatedDataWithUInt64Key = HashMap<UInt64, AggregateDataPtr, HashCRC32<UInt64>, HashTableFixedGrower<16>, HashTableAllocator>;
+using AggregatedDataWithUInt64Key = HashMap<UInt64, AggregateDataPtr, HashCRC32<UInt64>, HashTableGrower<>, HashTableAllocator>;
 using AggregatedDataWithUInt16Key = HashMap<UInt64, AggregateDataPtr, TrivialHash, HashTableFixedGrower<16>, HashTableAllocator>;
-using Method = AggregationMethodOneNumber<UInt32, AggregatedDataWithUInt64Key>;
 
 template <typename T>
 struct AggregateFunctionSumData {
@@ -70,14 +87,14 @@ struct AggregateFunctionSum {
 	using Data = AggregateFunctionSumData<T>;
 	static Data & data(AggregateDataPtr place) { return *reinterpret_cast<Data*>(place); }
 
-    void add(AggregateDataPtr place, const ColumnVector<T> ** columns, size_t row_num, Arena *) const
+    void add(AggregateDataPtr place, ColumnVector<T> * columns, size_t row_num, Arena *)
     {
-        this->data(place).add(static_cast<const ColumnVector<T> &>(*columns[0]).getData()[row_num]);
+        this->data(place).add(static_cast<ColumnVector<T> &>(*columns).getData()[row_num]);
     }
 
-    static void addFree(const AggregateFunctionSum<T> * that, AggregateDataPtr place, const ColumnVector<T> ** columns, size_t row_num, Arena * arena)
+    static void addFree(AggregateFunctionSum<T> * that, AggregateDataPtr place, ColumnVector<T> * columns, size_t row_num, Arena * arena)
     {
-        static_cast<const AggregateFunctionSum<T> &>(*that).add(place, columns, row_num, arena);
+        static_cast<AggregateFunctionSum<T> &>(*that).add(place, columns, row_num, arena);
     }
 
     void create(AggregateDataPtr place) const
@@ -88,19 +105,20 @@ struct AggregateFunctionSum {
     AggregateFunctionSum<T> * that;
 };
 
+// Actual type value binding is not here but for simplicity we put it here
 template <typename T>
 struct AggregateFunctionInstruction
 {
-	void (* func)(const AggregateFunctionSum<T> * that, AggregateDataPtr place, const ColumnVector<T> ** columns, size_t row_num, Arena * arena);
-    const AggregateFunctionSum<T> * that;
+	void (* func)(AggregateFunctionSum<T> * that, AggregateDataPtr place, ColumnVector<T> * columns, size_t row_num, Arena * arena);
+    AggregateFunctionSum<T> * that = nullptr;
     size_t state_offset;
-    const ColumnVector<T> ** arguments;
+    ColumnVector<T> * arguments;
 };
 
-template <typename T>
+template <typename T, typename Method>
 struct Aggretator {
 	AggregateFunctionSum<T> * agg;
-	void createAggregateStates(AggregateDataPtr & aggregate_data) const
+	void createAggregateStates(AggregateDataPtr & aggregate_data)
 	{
 		try
 		{
@@ -114,22 +132,20 @@ struct Aggretator {
 
 	void executeImplCase(
 	    Method & method,
-	    typename Method::State & state,
 	    size_t rows,
-		AggregateFunctionInstruction<T> * aggregate_instructions,
-	    AggregateDataPtr overflow_row) const
+		AggregateFunctionInstruction<T> * aggregate_instructions)
 	{
 		std::shared_ptr<Arena> aggregates_pool_ptr(new Arena());
 		Arena * aggregates_pool = aggregates_pool_ptr.get();
 	    /// NOTE When editing this code, also pay attention to SpecializedAggregator.h.
 
 	    /// For all rows.
+		typename Method::State & state = method.state;
 	    typename Method::iterator it;
 	    typename Method::Key prev_key;
 	    for (size_t i = 0; i < rows; ++i)
 	    {
 	        bool inserted;          /// Inserted a new key, or was this key already?
-	        bool overflow = false;  /// The new key did not fit in the hash table because of no_more_keys.
 
 	        /// Get the key to insert into the hash table.
 	        typename Method::Key key = state.getKey(i);
@@ -156,12 +172,12 @@ struct Aggretator {
 	            /// exception-safety - if you can not allocate memory or create states, then destructors will not be called.
 	            aggregate_data = nullptr;
 
-	            AggregateDataPtr place = aggregates_pool->alloc(sizeof(Method::AggType));
+	            AggregateDataPtr place = aggregates_pool->alloc(sizeof(typename Method::AggType));
 	            createAggregateStates(place);
 	            aggregate_data = place;
 	        }
 
-	        AggregateDataPtr value = (!overflow) ? Method::getAggregateData(it->second) : overflow_row;
+	        AggregateDataPtr value = Method::getAggregateData(it->second);
 
 	        /// Add values to the aggregate functions.
 	        for (AggregateFunctionInstruction<T> * inst = aggregate_instructions; inst->that; ++inst)

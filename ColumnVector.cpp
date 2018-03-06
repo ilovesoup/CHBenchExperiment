@@ -76,3 +76,4 @@ shared_ptr<ColumnVector<T>> ColumnVector<T>::filter(Filter * filter, size_t resu
 }
 
 template class ColumnVector<Int32>;
+template class ColumnVector<UInt32>;

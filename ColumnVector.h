@@ -17,7 +17,7 @@ public:
     }
 
     ColumnVector(size_t size) {
-        pData = shared_ptr<T>(new T[size], std::default_delete<Int32[]>());
+        pData = shared_ptr<T>(new T[size]);
         this->size = size;
     }
 

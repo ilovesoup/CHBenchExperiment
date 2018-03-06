@@ -14,11 +14,12 @@ using namespace std;
 
 
 using AggregateFunctionSumDataInt32 = AggregateFunctionSumData<Int32>;
+using Method = AggregationMethodOneNumber<UInt32, AggregatedDataWithUInt64Key>;
 
-
-void testNaiveLocality(Int32 * pData, size_t len);
+void testNaiveLocality(UInt32 * pData, size_t len);
 void benchmark();
-void testFilter(shared_ptr<Int32> pData, size_t len);
+void testFilter(shared_ptr<UInt32> pData, size_t len);
+void testAggregates(shared_ptr<UInt32> pData, size_t len);
 
 void handler(int sig) {
   void *array[10];
@@ -34,17 +35,18 @@ void handler(int sig) {
 }
 
 
-
 void benchmark() {
 	constexpr size_t bytes_in_gb = 1024 * 1024 * 1024;
-	constexpr size_t num_gb = 3;
-	constexpr size_t length = bytes_in_gb * num_gb / sizeof(Int32);
+	constexpr size_t num_gb = 1;
+	constexpr size_t length = bytes_in_gb * num_gb / sizeof(UInt32);
     cout << "Total size " << num_gb << "G" << endl;
-    shared_ptr<Int32> dataPtr = shared_ptr<Int32>(new int[length], std::default_delete<Int32[]>());
-    Int32 * pData = dataPtr.get();
+    shared_ptr<UInt32> dataPtr = shared_ptr<UInt32>(new UInt32[length], std::default_delete<UInt32[]>());
+    UInt32 * pData = dataPtr.get();
     for (size_t i = 0; i < length; i++) {
-        pData[i] = rand() % 1000;
+        //pData[i] = rand() % 1000;
+    		pData[i] = 1;
     }
+    /*
     cout << "benchmark started." << endl;
     //testNaiveLocality(pData, length);
     cout << "Test random data" << endl;
@@ -54,6 +56,8 @@ void benchmark() {
     sort(pData, pData + length);
     cout << "Test sorted data" << endl;
     testFilter(dataPtr, length);
+	*/
+    testAggregates(dataPtr, length);
 }
 
 template <typename T>
@@ -63,11 +67,11 @@ struct Pred {
     }
 };
 
-void testFilter(shared_ptr<Int32> dataPtr, size_t len) {
+void testFilter(shared_ptr<UInt32> dataPtr, size_t len) {
 	Timer t;
-	Int32 * pData = dataPtr.get();
-    ColumnVector<Int32> v(dataPtr, len);
-    Pred<Int32> p;
+	UInt32 * pData = dataPtr.get();
+    ColumnVector<UInt32> v(dataPtr, len);
+    Pred<UInt32> p;
     Filter * pFilter = new Filter[len];
     size_t hint = 0;
     for (int i = 0; i < len; i++) {
@@ -80,13 +84,13 @@ void testFilter(shared_ptr<Int32> dataPtr, size_t len) {
     UInt64 sum = 0;
     PRINT_MIL("Filtering", t.stop());
     for (int i = 0; i < len; i++) {
-    		Int32 v = pData[i];
+    		UInt32 v = pData[i];
     		if (p(v)) {
     			sum += v;
     		}
     }
 
-    Int32 * pRes = res->getData();
+    UInt32 * pRes = res->getData();
     size_t resLen = res->getSize();
     for (int i = 0; i < resLen; i++) {
 		Int32 v = pRes[i];
@@ -98,7 +102,18 @@ void testFilter(shared_ptr<Int32> dataPtr, size_t len) {
     delete [] pFilter;
 }
 
-void testNaiveLocality(Int32 * pData, size_t len) {
+void testAggregates(shared_ptr<UInt32> dataPtr, size_t len) {
+	Timer t;
+	UInt32 * pData = dataPtr.get();
+	ColumnVector<UInt32> v(dataPtr, len);
+
+	Aggretator<UInt32, Method> agg;
+
+	Method m(&v);
+	agg.executeImplCase(m, len, m.inst);
+}
+
+void testNaiveLocality(UInt32 * pData, size_t len) {
     // Actually Intel CPU is able to do prefetch backwards.
     // Hence there is little difference for cache miss part
     // Without O3, forwarding iteration needs an extra mov
@@ -147,14 +162,8 @@ void testNaiveLocality(Int32 * pData, size_t len) {
 
 int main() {
     int i;
-    // cin >> i;
+    cin >> i;
     signal(SIGSEGV, handler);
     benchmark();
-    Aggretator<UInt32> agg;
-    AggregateDataPtr ptr;
-    agg.createAggregateStates(ptr);
-    Method m;
-    Method::State s;
-    agg.executeImplCase(m, s, 0, NULL, ptr);
     return 0;
 }
