@@ -1,27 +1,20 @@
 package org.apache.spark.sql;
 
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Benchmark;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.unsafe.Platform;
 
-public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRowIterator {
-  private Object[] references;
+public class AggregateStandardIterator extends org.apache.spark.sql.execution.BufferedRowIterator {
   private scala.collection.Iterator[] inputs;
   private boolean agg_initAgg;
-  private boolean agg_bufIsNull;
-  private long agg_bufValue;
-  private org.apache.spark.sql.execution.aggregate.HashAggregateExec agg_plan;
   private agg_FastHashMap agg_fastHashMap;
   private org.apache.spark.unsafe.KVIterator agg_fastHashMapIter;
   private org.apache.spark.sql.execution.UnsafeFixedWidthAggregationMap agg_hashMap;
   private org.apache.spark.sql.execution.UnsafeKVExternalSorter agg_sorter;
   private org.apache.spark.unsafe.KVIterator agg_mapIter;
-  private org.apache.spark.sql.execution.metric.SQLMetric agg_peakMemory;
-  private org.apache.spark.sql.execution.metric.SQLMetric agg_spillSize;
   private scala.collection.Iterator scan_input;
-  private org.apache.spark.sql.execution.metric.SQLMetric scan_numOutputRows;
-  private org.apache.spark.sql.execution.metric.SQLMetric scan_scanTime;
   private long scan_scanTime1;
   private org.apache.spark.sql.execution.vectorized.ColumnarBatch scan_batch;
   private int scan_batchIdx;
@@ -35,8 +28,6 @@ public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRo
   private org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter agg_rowWriter;
   private int agg_value4;
   private org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowJoiner agg_unsafeRowJoiner;
-  private org.apache.spark.sql.execution.metric.SQLMetric wholestagecodegen_numOutputRows;
-  private org.apache.spark.sql.execution.metric.SQLMetric wholestagecodegen_aggTime;
 
   public void init(int index, scala.collection.Iterator[] inputs) {
     partitionIndex = index;
@@ -49,14 +40,9 @@ public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRo
   private void wholestagecodegen_init_0() {
     agg_initAgg = false;
 
-    this.agg_plan = (org.apache.spark.sql.execution.aggregate.HashAggregateExec) references[0];
-    agg_fastHashMap = new agg_FastHashMap(agg_plan.getTaskMemoryManager(), agg_plan.getEmptyAggregationBuffer());
+    agg_fastHashMap = new agg_FastHashMap(Benchmark.getTaskMemoryManager(), Benchmark.getEmptyAggregationBuffer());
 
-    this.agg_peakMemory = (org.apache.spark.sql.execution.metric.SQLMetric) references[1];
-    this.agg_spillSize = (org.apache.spark.sql.execution.metric.SQLMetric) references[2];
     scan_input = inputs[0];
-    this.scan_numOutputRows = (org.apache.spark.sql.execution.metric.SQLMetric) references[5];
-    this.scan_scanTime = (org.apache.spark.sql.execution.metric.SQLMetric) references[6];
     scan_scanTime1 = 0;
     scan_batch = null;
     scan_batchIdx = 0;
@@ -74,11 +60,9 @@ public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRo
     long getBatchStart = System.nanoTime();
     if (scan_input.hasNext()) {
       scan_batch = (org.apache.spark.sql.execution.vectorized.ColumnarBatch)scan_input.next();
-      scan_numOutputRows.add(scan_batch.numRows());
       scan_batchIdx = 0;
       scan_colInstance0 = scan_batch.column(0);
       scan_colInstance1 = scan_batch.column(1);
-
     }
     scan_scanTime1 += System.nanoTime() - getBatchStart;
   }
@@ -141,7 +125,7 @@ public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRo
             int klen = agg_result.getSizeInBytes();
 
             UnsafeRow vRow
-            = batch.appendRow(kbase, koff, klen, emptyVBase, emptyVOff, emptyVLen);
+                = batch.appendRow(kbase, koff, klen, emptyVBase, emptyVOff, emptyVLen);
             if (vRow == null) {
               isBatchFull = true;
             } else {
@@ -187,7 +171,7 @@ public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRo
   }
 
   private void agg_doAggregateWithKeys() throws java.io.IOException {
-    agg_hashMap = agg_plan.createHashMap();
+    agg_hashMap = Benchmark.createHashMap();
 
     if (scan_batch == null) {
       scan_nextBatch();
@@ -369,56 +353,38 @@ public class AggregateIterator extends org.apache.spark.sql.execution.BufferedRo
       scan_batch = null;
       scan_nextBatch();
     }
-    scan_scanTime.add(scan_scanTime1 / (1000 * 1000));
     scan_scanTime1 = 0;
 
     agg_fastHashMapIter = agg_fastHashMap.rowIterator();
 
-    agg_mapIter = agg_plan.finishAggregate(agg_hashMap, agg_sorter, agg_peakMemory, agg_spillSize);
+    agg_mapIter = agg_hashMap.iterator();
   }
 
   private void wholestagecodegen_init_1() {
     this.agg_rowWriter = new org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter(agg_holder, 1);
-
-    agg_unsafeRowJoiner = agg_plan.createUnsafeJoiner();
-    this.wholestagecodegen_numOutputRows = (org.apache.spark.sql.execution.metric.SQLMetric) references[7];
-    this.wholestagecodegen_aggTime = (org.apache.spark.sql.execution.metric.SQLMetric) references[8];
-
   }
 
   protected void processNext() throws java.io.IOException {
     if (!agg_initAgg) {
       agg_initAgg = true;
-      long wholestagecodegen_beforeAgg = System.nanoTime();
       agg_doAggregateWithKeys();
-      wholestagecodegen_aggTime.add((System.nanoTime() - wholestagecodegen_beforeAgg) / 1000000);
     }
 
     // output the result
 
     while (agg_fastHashMapIter.next()) {
-      wholestagecodegen_numOutputRows.add(1);
-      UnsafeRow agg_aggKey = (UnsafeRow) agg_fastHashMapIter.getKey();
-      UnsafeRow agg_aggBuffer = (UnsafeRow) agg_fastHashMapIter.getValue();
+      UnsafeRow key = (UnsafeRow) agg_fastHashMapIter.getKey();
+      UnsafeRow value = (UnsafeRow) agg_fastHashMapIter.getValue();
 
-      UnsafeRow agg_resultRow = agg_unsafeRowJoiner.join(agg_aggKey, agg_aggBuffer);
-
-      append(agg_resultRow);
-
-      if (shouldStop()) return;
+      System.out.println(key.toString() + " " + value.toString());
     }
     agg_fastHashMap.close();
 
     while (agg_mapIter.next()) {
-      wholestagecodegen_numOutputRows.add(1);
-      UnsafeRow agg_aggKey = (UnsafeRow) agg_mapIter.getKey();
-      UnsafeRow agg_aggBuffer = (UnsafeRow) agg_mapIter.getValue();
+      UnsafeRow key = (UnsafeRow) agg_mapIter.getKey();
+      UnsafeRow value = (UnsafeRow) agg_mapIter.getValue();
 
-      UnsafeRow agg_resultRow = agg_unsafeRowJoiner.join(agg_aggKey, agg_aggBuffer);
-
-      append(agg_resultRow);
-
-      if (shouldStop()) return;
+      System.out.println(key.toString() + " " + value.toString());
     }
 
     agg_mapIter.close();
