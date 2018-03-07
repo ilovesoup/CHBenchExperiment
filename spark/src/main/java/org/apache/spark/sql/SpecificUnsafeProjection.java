@@ -24,13 +24,6 @@ public class SpecificUnsafeProjection extends org.apache.spark.sql.catalyst.expr
 
   }
 
-
-
-  // Scala.Function1 need this
-  public java.lang.Object apply(java.lang.Object row) {
-    return apply((InternalRow) row);
-  }
-
   public UnsafeRow apply(InternalRow i) {
     boolean isNull = false;
 

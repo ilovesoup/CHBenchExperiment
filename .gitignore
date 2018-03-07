@@ -1,4 +1,6 @@
-ch/obj/*
+obj
+target
+lib
 .idea
 tispark-sample.iml
 benchmark
