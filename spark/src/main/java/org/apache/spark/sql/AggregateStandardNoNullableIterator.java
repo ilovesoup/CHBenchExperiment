@@ -1,34 +1,31 @@
 package org.apache.spark.sql;
 
+import java.util.Iterator;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Benchmark;
+import org.apache.spark.sql.catalyst.expressions.BenchmarkTest;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.unsafe.Platform;
 
 public class AggregateStandardNoNullableIterator extends org.apache.spark.sql.execution.BufferedRowIterator {
-  private Object[] references;
-  private scala.collection.Iterator[] inputs;
   private boolean agg_initAgg;
   private agg_FastHashMap agg_fastHashMap;
   private org.apache.spark.unsafe.KVIterator agg_fastHashMapIter;
   private org.apache.spark.sql.execution.UnsafeFixedWidthAggregationMap agg_hashMap;
   private org.apache.spark.sql.execution.UnsafeKVExternalSorter agg_sorter;
   private org.apache.spark.unsafe.KVIterator agg_mapIter;
-  private scala.collection.Iterator inputadapter_input;
+  private Iterator inputadapter_input;
   private UnsafeRow agg_result1;
   private org.apache.spark.sql.catalyst.expressions.codegen.BufferHolder agg_holder;
   private org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter agg_rowWriter;
   private int hashVal;
 
-  public void init(int index, scala.collection.Iterator[] inputs) {
-    partitionIndex = index;
-    this.inputs = inputs;
+  public void init(Iterator input) {
     agg_initAgg = false;
 
-    agg_fastHashMap = new agg_FastHashMap(Benchmark.getTaskMemoryManager(), Benchmark.getEmptyAggregationBuffer());
+    agg_fastHashMap = new agg_FastHashMap(BenchmarkTest.getTaskMemoryManager(), BenchmarkTest.getEmptyAggregationBuffer());
 
-    inputadapter_input = inputs[0];
+    inputadapter_input = input;
     agg_result1 = new UnsafeRow(1);
     this.agg_holder = new org.apache.spark.sql.catalyst.expressions.codegen.BufferHolder(agg_result1, 0);
     this.agg_rowWriter = new org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter(agg_holder, 1);
@@ -138,7 +135,7 @@ public class AggregateStandardNoNullableIterator extends org.apache.spark.sql.ex
   }
 
   private void agg_doAggregateWithKeys() throws java.io.IOException {
-    agg_hashMap = Benchmark.createHashMap();
+    agg_hashMap = BenchmarkTest.createHashMap();
 
     while (inputadapter_input.hasNext()) {
       InternalRow inputadapter_row = (InternalRow) inputadapter_input.next();
@@ -264,7 +261,6 @@ public class AggregateStandardNoNullableIterator extends org.apache.spark.sql.ex
         agg_unsafeRowAggBuffer.setLong(0, agg_value6);
 
       }
-      if (shouldStop()) return;
     }
 
     agg_fastHashMapIter = agg_fastHashMap.rowIterator();
@@ -272,10 +268,18 @@ public class AggregateStandardNoNullableIterator extends org.apache.spark.sql.ex
     agg_mapIter = agg_hashMap.iterator();
   }
 
-  protected void processNext() throws java.io.IOException {
+  @Override
+  public void init(int index, scala.collection.Iterator<InternalRow>[] iters) {
+
+  }
+
+  public void processNext() throws java.io.IOException {
     if (!agg_initAgg) {
       agg_initAgg = true;
+      System.out.println("Starting executing...");
+      Timer t = new Timer();
       agg_doAggregateWithKeys();
+      t.stopAndPrint();
     }
 
     // output the result

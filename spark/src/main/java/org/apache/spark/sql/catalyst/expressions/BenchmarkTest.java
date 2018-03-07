@@ -4,30 +4,54 @@ package org.apache.spark.sql.catalyst.expressions;
 import static org.apache.spark.sql.types.DataTypes.IntegerType;
 import static org.apache.spark.sql.types.DataTypes.LongType;
 
+import java.io.IOException;
 import org.apache.spark.SparkConf;
 import org.apache.spark.memory.MemoryManager;
 import org.apache.spark.memory.TaskMemoryManager;
 import org.apache.spark.memory.UnifiedMemoryManager;
+import org.apache.spark.sql.AggregateStandardNoNullableIterator;
 import org.apache.spark.sql.SpecificUnsafeProjection;
 import org.apache.spark.sql.execution.UnsafeFixedWidthAggregationMap;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.RunnerException;
+import org.openjdk.jmh.runner.options.Options;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 import scala.collection.immutable.Map;
 
-public class Benchmark {
-  final static long bytes_in_gb = 1024 * 1024 * 1024;
+public class BenchmarkTest {
+  final static int bytes_in_gb = 1024 * 1024 * 1024;
+  final static int num_gb = 1;
+  final static int length = bytes_in_gb * num_gb / 4;
 
-  public static void main(String [] args) {
-    SparkConf conf = new SparkConf().set("spark.memory.offHeap.enabled", "true");
-    long maxMemory = Runtime.getRuntime().maxMemory();
-    long onHeapStorageRegionSize = maxMemory / 2;
-    MemoryManager memoryManager = new UnifiedMemoryManager(conf, maxMemory, onHeapStorageRegionSize, 1);
-    TaskMemoryManager manager = new TaskMemoryManager(memoryManager, 0);
+  public static void main(String [] args) throws Exception {
+    // TestByJMH();
+    BenchmarkTest testObj = new BenchmarkTest();
+    testObj.test();
+  }
+
+  private static void TestByJMH() throws RunnerException {
+    Options opt = new OptionsBuilder()
+        .include(BenchmarkTest.class.getSimpleName())
+        .warmupIterations(0)
+        .measurementIterations(3)
+        .build();
+    new Runner(opt).run();
+  }
+
+  private static RowIterator input = new RowIterator(length);
+  private static AggregateStandardNoNullableIterator iter = new AggregateStandardNoNullableIterator();
+
+  @Benchmark
+  public void test() throws IOException {
+    iter.init(input);
+    iter.processNext();
   }
 
   static public UnsafeFixedWidthAggregationMap createHashMap() {
-    SpecificUnsafeProjection proj = new SpecificUnsafeProjection();
     Map<String, Object> emptyMap = scala.collection.immutable.Map$.MODULE$.empty();
     Metadata emptyMeta = new Metadata(emptyMap);
 
@@ -52,7 +76,9 @@ public class Benchmark {
   }
 
   public static TaskMemoryManager getTaskMemoryManager() {
-    SparkConf conf = new SparkConf().set("spark.memory.offHeap.enabled", "true");
+    SparkConf conf = new SparkConf()
+        .set("spark.memory.offHeap.enabled", "true")
+        .set("spark.memory.offHeap.size", Long.toString(bytes_in_gb * 4L));
     long maxMemory = Runtime.getRuntime().maxMemory();
     long onHeapStorageRegionSize = maxMemory / 2;
     MemoryManager memoryManager = new UnifiedMemoryManager(conf, maxMemory, onHeapStorageRegionSize, 1);

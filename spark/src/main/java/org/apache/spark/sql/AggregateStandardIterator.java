@@ -1,7 +1,7 @@
 package org.apache.spark.sql;
 
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Benchmark;
+import org.apache.spark.sql.catalyst.expressions.BenchmarkTest;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.unsafe.Platform;
@@ -40,7 +40,7 @@ public class AggregateStandardIterator extends org.apache.spark.sql.execution.Bu
   private void wholestagecodegen_init_0() {
     agg_initAgg = false;
 
-    agg_fastHashMap = new agg_FastHashMap(Benchmark.getTaskMemoryManager(), Benchmark.getEmptyAggregationBuffer());
+    agg_fastHashMap = new agg_FastHashMap(BenchmarkTest.getTaskMemoryManager(), BenchmarkTest.getEmptyAggregationBuffer());
 
     scan_input = inputs[0];
     scan_scanTime1 = 0;
@@ -171,7 +171,7 @@ public class AggregateStandardIterator extends org.apache.spark.sql.execution.Bu
   }
 
   private void agg_doAggregateWithKeys() throws java.io.IOException {
-    agg_hashMap = Benchmark.createHashMap();
+    agg_hashMap = BenchmarkTest.createHashMap();
 
     if (scan_batch == null) {
       scan_nextBatch();
@@ -364,7 +364,7 @@ public class AggregateStandardIterator extends org.apache.spark.sql.execution.Bu
     this.agg_rowWriter = new org.apache.spark.sql.catalyst.expressions.codegen.UnsafeRowWriter(agg_holder, 1);
   }
 
-  protected void processNext() throws java.io.IOException {
+  public void processNext() throws java.io.IOException {
     if (!agg_initAgg) {
       agg_initAgg = true;
       agg_doAggregateWithKeys();
