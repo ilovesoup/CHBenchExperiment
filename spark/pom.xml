@@ -34,11 +34,6 @@
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-hive_${scala.version}</artifactId>
-            <version>${spark.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.spark</groupId>
             <artifactId>spark-unsafe_${scala.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
@@ -51,7 +46,6 @@
             <groupId>org.openjdk.jmh</groupId>
             <artifactId>jmh-generator-annprocess</artifactId>
             <version>1.19</version>
-            <scope>provided</scope>
         </dependency>
 
     </dependencies>

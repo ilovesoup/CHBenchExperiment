@@ -5,6 +5,7 @@ import static org.apache.spark.sql.types.DataTypes.IntegerType;
 import static org.apache.spark.sql.types.DataTypes.LongType;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import org.apache.spark.SparkConf;
 import org.apache.spark.memory.MemoryManager;
 import org.apache.spark.memory.TaskMemoryManager;
@@ -16,6 +17,8 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
@@ -26,29 +29,41 @@ public class BenchmarkTest {
   final static int bytes_in_gb = 1024 * 1024 * 1024;
   final static int num_gb = 1;
   final static int length = bytes_in_gb * num_gb / 4;
+  final static int iterTimes = 8;
 
   public static void main(String [] args) throws Exception {
-    // TestByJMH();
-    BenchmarkTest testObj = new BenchmarkTest();
-    testObj.test();
+    if (Integer.parseInt(args[0]) == 0) {
+      TestByJMH();
+    } else {
+      for (int i = 0; i < iterTimes; i++) {
+        BenchmarkTest testObj = new BenchmarkTest();
+        testObj.input.reset();
+        testObj.iter.init(input);
+        testObj.iter.process();
+      }
+    }
   }
 
   private static void TestByJMH() throws RunnerException {
     Options opt = new OptionsBuilder()
         .include(BenchmarkTest.class.getSimpleName())
-        .warmupIterations(0)
-        .measurementIterations(3)
+        .forks(1)
+        .warmupIterations(1)
+        .measurementIterations(iterTimes)
+        .mode(Mode.AverageTime)
         .build();
     new Runner(opt).run();
   }
 
   private static RowIterator input = new RowIterator(length);
+
   private static AggregateStandardNoNullableIterator iter = new AggregateStandardNoNullableIterator();
 
-  @Benchmark
+  @Benchmark @OutputTimeUnit(TimeUnit.MILLISECONDS)
   public void test() throws IOException {
+    input.reset();
     iter.init(input);
-    iter.processNext();
+    iter.process();
   }
 
   static public UnsafeFixedWidthAggregationMap createHashMap() {

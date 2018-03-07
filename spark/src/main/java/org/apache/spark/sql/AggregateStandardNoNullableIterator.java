@@ -1,6 +1,8 @@
 package org.apache.spark.sql;
 
+import java.io.IOException;
 import java.util.Iterator;
+import org.apache.log4j.Logger;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.BenchmarkTest;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
@@ -8,6 +10,7 @@ import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.unsafe.Platform;
 
 public class AggregateStandardNoNullableIterator extends org.apache.spark.sql.execution.BufferedRowIterator {
+  private static final Logger logger = Logger.getLogger(AggregateStandardNoNullableIterator.class);
   private boolean agg_initAgg;
   private agg_FastHashMap agg_fastHashMap;
   private org.apache.spark.unsafe.KVIterator agg_fastHashMapIter;
@@ -273,22 +276,32 @@ public class AggregateStandardNoNullableIterator extends org.apache.spark.sql.ex
 
   }
 
+  public void process() throws IOException {
+    logger.warn("Starting executing...");
+    Timer t = new Timer();
+    agg_doAggregateWithKeys();
+    t.stopAndPrint();
+    agg_fastHashMap.close();
+    if (agg_sorter == null) {
+      agg_hashMap.free();
+    }
+  }
+
   public void processNext() throws java.io.IOException {
     if (!agg_initAgg) {
       agg_initAgg = true;
-      System.out.println("Starting executing...");
+      logger.warn("Starting executing...");
       Timer t = new Timer();
       agg_doAggregateWithKeys();
       t.stopAndPrint();
     }
 
     // output the result
-
     while (agg_fastHashMapIter.next()) {
       UnsafeRow key = (UnsafeRow) agg_fastHashMapIter.getKey();
       UnsafeRow value = (UnsafeRow) agg_fastHashMapIter.getValue();
 
-      System.out.println(key.toString() + " " + value.toString());
+      System.out.println(key.getInt(0) + " " + value.getLong(0));
     }
     agg_fastHashMap.close();
 

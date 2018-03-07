@@ -1,5 +1,5 @@
 CC=g++-7
-CFLAGS=-I. -O2 -ggdb
+CFLAGS=-I. -O3 -ggdb
 
 _OBJ=benchmark.o ColumnVector.o Allocator.o mremap.o 
 

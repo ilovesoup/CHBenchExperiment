@@ -25,6 +25,10 @@ public class RowIterator implements Iterator<InternalRow> {
   private int size;
   private int idx;
 
+  public void reset() {
+    idx = 0;
+  }
+
   @Override
   public boolean hasNext() {
     return idx < size;
