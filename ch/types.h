@@ -14,6 +14,7 @@ typedef std::uint64_t UInt64;
 typedef UInt8 Filter;
 
 #define ALWAYS_INLINE inline __attribute__((always_inline))
+#define NO_INLINE __attribute__((__noinline__))
 
 using AggregateDataPtr = char *;
 

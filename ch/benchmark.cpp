@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include "Aggregator.h"
+#include "FunctionsArithmetic.h"
 
 using namespace std;
 
@@ -16,6 +17,8 @@ using namespace std;
 using AggregateFunctionSumDataInt32 = AggregateFunctionSumData<Int32>;
 using Method = AggregationMethodOneNumber<UInt32, AggregatedDataWithUInt64Key>;
 
+void testExpr(shared_ptr<UInt32>, shared_ptr<UInt32>, size_t);
+void testExprCodegenStyle(shared_ptr<UInt32>, shared_ptr<UInt32>, size_t);
 void testNaiveLocality(UInt32 * pData, size_t len);
 void benchmark();
 void testFilter(shared_ptr<UInt32> pData, size_t len);
@@ -59,9 +62,13 @@ void benchmark() {
     sort(pData, pData + length);
     cout << "Test sorted data" << endl;
     testFilter(dataPtr, length);
-	*/
+	
     cout << "benchmark aggregates started." << endl;
     testAggregates(keyPtr, dataPtr, length);
+    */
+    cout << "benchmark expr started." << endl;
+    testExpr(dataPtr, keyPtr, length);
+    testExprCodegenStyle(dataPtr, keyPtr, length);
 }
 
 void testAggregates(shared_ptr<UInt32> keyPtr, shared_ptr<UInt32> dataPtr, size_t len) {
@@ -93,6 +100,58 @@ struct Pred {
         return data < 500 ? 1 : 0;
     }
 };
+
+void testExpr(shared_ptr<UInt32> dataPtr, shared_ptr<UInt32> data1Ptr, size_t len) {
+    Timer t;
+	UInt32 * pData = dataPtr.get();
+    UInt32 * pData1 = data1Ptr.get();
+    BinaryOperationImpl<UInt32, UInt32, PlusImpl<UInt32, UInt32>> plus;
+
+    UInt32 * pRes = new UInt32[len];
+    UInt32 * pRes1 = new UInt32[len];
+
+    plus.vector_constant(pData, 1, pRes, len);
+    plus.vector_vector(pData1, pRes, pRes1, len);
+    plus.vector_vector(pData1, pRes1, pRes, len);
+    
+    PRINT_MIL("Expr", t.stop());
+    for (int i = 0; i < len; i++) {
+    	if (pRes[i] != pData[i] + 1 + pData1[i] + pData1[i]) {
+            cout << "Incorrect" << endl;
+            delete [] pRes;
+            delete [] pRes1;
+            return;
+        }
+    }
+
+    delete [] pRes;
+    delete [] pRes1;
+}
+
+void testExprCodegenStyle(shared_ptr<UInt32> dataPtr, shared_ptr<UInt32> data1Ptr, size_t len) {
+    Timer t;
+	UInt32 * pData = dataPtr.get();
+    UInt32 * pData1 = data1Ptr.get();
+
+    BinaryOperationImpl<UInt32, UInt32, PlusImpl<UInt32, UInt32>> plus;
+
+    UInt32 * pRes = new UInt32[len];
+
+    for (int i = 0; i < len; i++) {
+        pRes[i] = pData[i] + 1 + pData1[i] + pData1[i];
+    }
+    
+    PRINT_MIL("Expr", t.stop());
+    for (int i = 0; i < len; i++) {
+    	if (pRes[i] != pData[i] + 1 + pData[i] + pData[i]) {
+            cout << "Incorrect" << endl;
+            delete [] pRes;
+            return;
+        }
+    }
+
+    delete [] pRes;
+}
 
 void testFilter(shared_ptr<UInt32> dataPtr, size_t len) {
 	Timer t;
