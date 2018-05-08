@@ -17,7 +17,9 @@ using namespace std;
 using AggregateFunctionSumDataInt32 = AggregateFunctionSumData<Int32>;
 using Method = AggregationMethodOneNumber<UInt32, AggregatedDataWithUInt64Key>;
 
-void testExpr(shared_ptr<UInt32>, shared_ptr<UInt32>, size_t);
+UInt32 * runBlock(UInt32 * pData, UInt32 * pData1, size_t len, 
+        BinaryOperationImpl<UInt32, UInt32, PlusImpl<UInt32, UInt32>> * plus);
+void testExpr(shared_ptr<UInt32>, shared_ptr<UInt32>, size_t, size_t);
 void testExprCodegenStyle(shared_ptr<UInt32>, shared_ptr<UInt32>, size_t);
 void testNaiveLocality(UInt32 * pData, size_t len);
 void benchmark();
@@ -67,7 +69,11 @@ void benchmark() {
     testAggregates(keyPtr, dataPtr, length);
     */
     cout << "benchmark expr started." << endl;
-    testExpr(dataPtr, keyPtr, length);
+    testExpr(dataPtr, keyPtr, length, 32);
+    testExpr(dataPtr, keyPtr, length, 1 * 1024);
+    testExpr(dataPtr, keyPtr, length, 32 * 1024);
+    testExpr(dataPtr, keyPtr, length, 64 * 1024);
+    testExpr(dataPtr, keyPtr, length, length);
     testExprCodegenStyle(dataPtr, keyPtr, length);
 }
 
@@ -101,31 +107,47 @@ struct Pred {
     }
 };
 
-void testExpr(shared_ptr<UInt32> dataPtr, shared_ptr<UInt32> data1Ptr, size_t len) {
+void testExpr(shared_ptr<UInt32> dataPtr, shared_ptr<UInt32> data1Ptr, size_t len, size_t bs) {
     Timer t;
 	UInt32 * pData = dataPtr.get();
     UInt32 * pData1 = data1Ptr.get();
     BinaryOperationImpl<UInt32, UInt32, PlusImpl<UInt32, UInt32>> plus;
+    size_t blockSize = bs; //64 * 1024;
+    size_t blockCount = len / blockSize;
 
+    UInt32 ** pResBlocks = new UInt32*[blockCount];
+    for (size_t i = 0; i < blockCount; i++) {
+        pResBlocks[i] = runBlock(pData, pData1, bs, &plus);
+        pData += blockSize;
+        pData1 += blockSize;
+    }
+
+    cout << "Block Size = " << bs << endl;
+    PRINT_MIL("Expr", t.stop());
+
+    long sum = 0;
+    for (size_t i = 0; i < blockCount; i++) {
+        for (int j = 0; j < bs; j++) {
+            sum += pResBlocks[i][j];
+        }
+        delete [] pResBlocks[i];
+    }
+    cout << "Sum = " << sum << endl;
+    delete [] pResBlocks;
+}
+
+
+UInt32 * runBlock(UInt32 * pData, UInt32 * pData1, size_t len, 
+        BinaryOperationImpl<UInt32, UInt32, PlusImpl<UInt32, UInt32>> * plus) {
     UInt32 * pRes = new UInt32[len];
     UInt32 * pRes1 = new UInt32[len];
 
-    plus.vector_constant(pData, 1, pRes, len);
-    plus.vector_vector(pData1, pRes, pRes1, len);
-    plus.vector_vector(pData1, pRes1, pRes, len);
-    
-    PRINT_MIL("Expr", t.stop());
-    for (int i = 0; i < len; i++) {
-    	if (pRes[i] != pData[i] + 1 + pData1[i] + pData1[i]) {
-            cout << "Incorrect" << endl;
-            delete [] pRes;
-            delete [] pRes1;
-            return;
-        }
-    }
+    plus->vector_constant(pData, 1, pRes, len);
+    plus->vector_vector(pData1, pRes, pRes1, len);
+    plus->vector_vector(pData1, pRes1, pRes, len);
 
-    delete [] pRes;
-    delete [] pRes1;
+    delete pRes1;
+    return pRes;
 }
 
 void testExprCodegenStyle(shared_ptr<UInt32> dataPtr, shared_ptr<UInt32> data1Ptr, size_t len) {
@@ -141,14 +163,17 @@ void testExprCodegenStyle(shared_ptr<UInt32> dataPtr, shared_ptr<UInt32> data1Pt
         pRes[i] = pData[i] + 1 + pData1[i] + pData1[i];
     }
     
-    PRINT_MIL("Expr", t.stop());
+    PRINT_MIL("ExprCodegen", t.stop());
+    long sum = 0;
     for (int i = 0; i < len; i++) {
+        sum += pRes[i];
     	if (pRes[i] != pData[i] + 1 + pData[i] + pData[i]) {
             cout << "Incorrect" << endl;
             delete [] pRes;
             return;
         }
     }
+    cout << "Sum = " << sum << endl;
 
     delete [] pRes;
 }
